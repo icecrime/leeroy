@@ -13,25 +13,16 @@ func (g GitHub) DcoVerified(prHook *octokat.PullRequestHook) (bool, error) {
 		return false, nil
 	}
 
-	// get the PR
-	pr := prHook.PullRequest
-	repo := getRepo(prHook.Repo)
-
-	content, err := g.getPullRequestContent(repo, prHook.Number)
-	if err != nil {
-		return false, err
-	}
-
 	// we only want apply labels
 	// to opened pull requests
 	var labels []string
 
 	//check if it's a proposal
-	isProposal := strings.Contains(strings.ToLower(pr.Title), "proposal")
+	isProposal := strings.Contains(strings.ToLower(g.PR.Title), "proposal")
 	switch {
 	case isProposal:
 		labels = []string{"status/1-needs-design-review"}
-	case content.IsDocsOnly():
+	case g.Content.IsDocsOnly():
 		labels = []string{"status/3-needs-docs-review"}
 	default:
 		labels = []string{"status/0-needs-triage"}
@@ -42,7 +33,7 @@ func (g GitHub) DcoVerified(prHook *octokat.PullRequestHook) (bool, error) {
 	if len(labels) > 0 && prHook.IsOpened() {
 		log.Debugf("Adding labels %#v to pr %d", labels, prHook.Number)
 
-		if err := g.addLabel(repo, prHook.Number, labels...); err != nil {
+		if err := g.addLabel(g.Repo, prHook.Number, labels...); err != nil {
 			return false, err
 		}
 
@@ -51,40 +42,33 @@ func (g GitHub) DcoVerified(prHook *octokat.PullRequestHook) (bool, error) {
 
 	var verified bool
 
-	if content.CommitsSigned() {
-		if err := g.toggleLabels(repo, prHook.Number, "dco/no", "dco/yes"); err != nil {
+	if g.Content.CommitsSigned() {
+		if err := g.toggleLabels(g.Repo, prHook.Number, "dco/no", "dco/yes"); err != nil {
 			return false, err
 		}
 
-		if err := g.removeComment(repo, pr, "sign your commits", content); err != nil {
+		if err := g.removeComment(g.Repo, g.PR, "sign your commits", g.Content); err != nil {
 			return false, err
 		}
 
-		if err := g.successStatus(repo, pr.Head.Sha, "docker/dco-signed", "All commits signed"); err != nil {
+		if err := g.successStatus(g.Repo, g.PR.Head.Sha, "docker/dco-signed", "All commits signed"); err != nil {
 			return false, err
 		}
 
 		verified = true
 	} else {
-		if err := g.toggleLabels(repo, prHook.Number, "dco/yes", "dco/no"); err != nil {
+		if err := g.toggleLabels(g.Repo, prHook.Number, "dco/yes", "dco/no"); err != nil {
 			return false, err
 		}
 
-		if err := g.addDCOUnsignedComment(repo, pr, content); err != nil {
+		if err := g.addDCOUnsignedComment(g.Repo, g.PR, g.Content); err != nil {
 			return false, err
 		}
 
-		if err := g.failureStatus(repo, pr.Head.Sha, "docker/dco-signed", "Some commits without signature", "https://github.com/docker/docker/blob/master/CONTRIBUTING.md#sign-your-work"); err != nil {
+		if err := g.failureStatus(g.Repo, g.PR.Head.Sha, "docker/dco-signed", "Some commits without signature", "https://github.com/docker/docker/blob/master/CONTRIBUTING.md#sign-your-work"); err != nil {
 			return false, err
 		}
 	}
 
 	return verified, nil
-}
-
-func getRepo(repo *octokat.Repository) octokat.Repo {
-	return octokat.Repo{
-		Name:     repo.Name,
-		UserName: repo.Owner.Login,
-	}
 }

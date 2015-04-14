@@ -17,28 +17,19 @@ func (g GitHub) IsMergeable(prHook *octokat.PullRequestHook) (mergeable bool, er
 		return mergeable, nil
 	}
 
-	// get the PR
-	pr := prHook.PullRequest
-	repo := getRepo(prHook.Repo)
-
-	content, err := g.getPullRequestContent(repo, prHook.Number)
-	if err != nil {
-		return mergeable, err
-	}
-
 	commentType := "merge conflicts"
-	if !isMergeable(pr) {
+	if !isMergeable(g.PR) {
 		mergeable = false
 		log.Debugf("Found pr %d was not mergable, going to add comment", prHook.Number)
 
 		// add a comment
 		comment := "Looks like we would not be able to merge this PR because of merge conflicts. Please rebase, fix conflicts, and force push to your branch."
-		if err := g.addUniqueComment(repo, strconv.Itoa(prHook.Number), comment, commentType, content); err != nil {
+		if err := g.addUniqueComment(g.Repo, strconv.Itoa(prHook.Number), comment, commentType, g.Content); err != nil {
 			return mergeable, err
 		}
 
 		// set the status
-		if err := g.failureStatus(repo, pr.Head.Sha, "docker/is-mergable", "This PR is not mergable, please fix conflicts.", "https://docs.docker.com/project/work-issue/"); err != nil {
+		if err := g.failureStatus(g.Repo, g.PR.Head.Sha, "docker/is-mergable", "This PR is not mergable, please fix conflicts.", "https://docs.docker.com/project/work-issue/"); err != nil {
 			return mergeable, err
 		}
 
@@ -46,7 +37,7 @@ func (g GitHub) IsMergeable(prHook *octokat.PullRequestHook) (mergeable bool, er
 	}
 
 	// otherwise try to find the comment and remove it
-	if err := g.removeComment(repo, pr, commentType, content); err != nil {
+	if err := g.removeComment(g.Repo, g.PR, commentType, g.Content); err != nil {
 		return mergeable, err
 	}
 
