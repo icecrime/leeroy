@@ -99,7 +99,7 @@ func main() {
 	mux.HandleFunc("/notification/jenkins", jenkinsHandler)
 
 	// github webhooks endpoint
-	mux.HandleFunc("/notification/github", githubHandler)
+	//mux.HandleFunc("/notification/github", githubHandler)
 
 	// retry build endpoint
 	mux.HandleFunc("/build/retry", customBuildHandler)
